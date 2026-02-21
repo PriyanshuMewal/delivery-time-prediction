@@ -1,0 +1,10 @@
+{
+    "catboost": {
+        "iterations": 1658,
+        "learning_rate": 0.012937919335703926,
+        "depth": 10,
+        "l2_leaf_reg": 1.6558560841722005,
+        "min_data_in_leaf": 64,
+        "bagging_temperature": 0.9829734460508931
+    }
+}
