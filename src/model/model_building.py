@@ -27,5 +27,3 @@ path = os.path.join("models", "lgbm_regressor.pkl")
 with open(path, mode="wb") as file:
 
     pickle.dump(model, file)
-
-print(model.get_params())

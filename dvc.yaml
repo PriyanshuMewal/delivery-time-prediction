@@ -33,3 +33,11 @@ stages:
     - model_building
     outs:
     - models\lgbm_regressor.pkl
+  model_evaluation:
+    cmd: python .\src\model\model_evaluation.py
+    deps:
+    - .\data\processed\
+    - .\models\lgbm_regressor.pkl
+    - .\src\model\model_evaluation.py
+    metrics:
+    - reports/metrics.json
