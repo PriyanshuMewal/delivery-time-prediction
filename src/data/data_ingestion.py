@@ -53,5 +53,5 @@ path = os.path.join("data", "raw")
 
 os.mkdir(path)
 
-X_train.to_csv(os.path.join(path, "train_df.csv"))
-X_test.to_csv(os.path.join(path, "test_df.csv"))
+X_train.to_csv(os.path.join(path, "train_df.csv"), index=False)
+X_test.to_csv(os.path.join(path, "test_df.csv"), index=False)
