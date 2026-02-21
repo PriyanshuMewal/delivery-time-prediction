@@ -113,11 +113,13 @@ def clean_data(df):
                     "ordered_time", "picked_time"]
 
     df.drop(columns=cols_to_drop, inplace=True)
+    
+    return df
 
 
 # clean training and testing data:
-clean_data(train_df)
-clean_data(test_df)
+train_df = clean_data(train_df)
+test_df = clean_data(test_df)
 
 
 # store data:

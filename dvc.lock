@@ -31,11 +31,53 @@ stages:
       nfiles: 2
     - path: .\src\data\data_preprocessing.py
       hash: md5
-      md5: 796621358e5d3b2a22ca6060285f7e36
-      size: 4399
+      md5: 233d75f6c5b9fa48365bc0b2a52433ee
+      size: 4443
     outs:
     - path: .\data\interim\
       hash: md5
-      md5: 2217c09e6943aac2dd8bedd306bd70a3.dir
-      size: 8389959
+      md5: d66db0a61362ab095f165d4dc4542815.dir
+      size: 4687713
+      nfiles: 2
+  feature_engineering:
+    cmd: python .\src\features\feature_engineering.py
+    deps:
+    - path: .\data\interim\
+      hash: md5
+      md5: d66db0a61362ab095f165d4dc4542815.dir
+      size: 4687713
+      nfiles: 2
+    - path: .\src\features\feature_engineering.py
+      hash: md5
+      md5: d63bda4b75ee77b6ba54f97f53a7526b
+      size: 4371
+    params:
+      params.yaml:
+        feature_engineering:
+          const_imputation:
+            strategy: constant
+            fill_value: missing
+          iterative_imputation:
+            estimator: LGBMRegressor
+            max_iter: 15
+          lightgbm_params:
+            n_estimators: 300
+            max_depth: -1
+            learning_rate: 0.05
+            num_leaves: 31
+            subsample: 0.8
+            colsample_bytree: 0.8
+            random_state: 42
+            verbosity: -1
+          ordinal_encoder:
+            unknown_value: -1
+          onehot_encoder:
+            drop: first
+            handle_unknown: ignore
+            sparse_output: false
+    outs:
+    - path: .\data\processed\
+      hash: md5
+      md5: eafa302cca2b638984bb33280bf74af3.dir
+      size: 7363236
       nfiles: 2
