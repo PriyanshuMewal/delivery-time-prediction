@@ -41,3 +41,4 @@ model_building:
   "bagging_fraction": 0.9697068541421031
   "lambda_l1": 3.972979937157174e-08
   "lambda_l2": 2.639574087334251e-08
+  "verbose": -1

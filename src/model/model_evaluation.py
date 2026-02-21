@@ -20,8 +20,8 @@ with open("models/lgbm_regressor.pkl", mode="rb") as file:
 X_train = train_df.drop(columns=["time"])
 y_train = train_df["time"]
 
-X_test = train_df.drop(columns=["time"])
-y_test = train_df["time"]
+X_test = test_df.drop(columns=["time"])
+y_test = test_df["time"]
 
 
 # Evaluate model performance

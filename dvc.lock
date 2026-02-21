@@ -105,11 +105,12 @@ stages:
           bagging_fraction: 0.9697068541421031
           lambda_l1: 3.972979937157173e-08
           lambda_l2: 2.639574087334250e-08
+          verbose: -1
     outs:
     - path: models\lgbm_regressor.pkl
       hash: md5
-      md5: b41ade0fb84eb43188fb4b2f4f0d2047
-      size: 12666254
+      md5: d9abb5c9d4cbde4fd8692e654e294666
+      size: 12666292
   model_evaluation:
     cmd: python .\src\model\model_evaluation.py
     deps:
@@ -120,14 +121,14 @@ stages:
       nfiles: 2
     - path: .\models\lgbm_regressor.pkl
       hash: md5
-      md5: b41ade0fb84eb43188fb4b2f4f0d2047
-      size: 12666254
+      md5: d9abb5c9d4cbde4fd8692e654e294666
+      size: 12666292
     - path: .\src\model\model_evaluation.py
       hash: md5
-      md5: db4a2f9395564bc63d0d8bc78b60de61
-      size: 1426
+      md5: 153f56d189a6f03967aa8fbf5adcc9f5
+      size: 1424
     outs:
     - path: reports/metrics.json
       hash: md5
-      md5: d74910dc76b98a86a5a5b8da47c4bcc3
-      size: 248
+      md5: 63f023d6de3db8f93b014ba0d3f38582
+      size: 249
