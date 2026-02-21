@@ -8,13 +8,16 @@ from lightgbm import LGBMRegressor
 from sklearn.preprocessing import StandardScaler
 import os
 import pickle
-
+import yaml
 from sklearn import set_config
 set_config(transform_output="pandas")
 
-# load data:
+# load data and parameters:
 train_df = pd.read_csv("data/interim/train_cleaned.csv")
 test_df = pd.read_csv("data/interim/test_cleaned.csv")
+
+with open("params.yaml", mode="rb") as file:
+    params = yaml.safe_load(file)["feature_engineering"]
 
 X_train = train_df.drop(columns=["time"])
 y_train = train_df["time"]
@@ -41,20 +44,24 @@ num_cols = ["age", "ratings", "pickup_time"]
 mode_impute = ["multi_deliveries", "festival", "city_type"]
 random_impute = ["weather", "traffic", "order_time_of_day"]
 
+# parameters for imputation:
+strategy = params["const_imputation"]["strategy"]
+fill_value = params["const_imputation"]["fill_value"]
+
 impute_categorical_const = ColumnTransformer(transformers=[
     ("mode_imputation", FunctionTransformer(mode_imputation), mode_impute),
-    ("const_imputation", SimpleImputer(strategy="constant", fill_value="missing"), random_impute),
+    ("const_imputation", SimpleImputer(strategy=strategy,
+                                       fill_value=fill_value), random_impute),
 ], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
 
-lgb_estimator = LGBMRegressor(
-    n_estimators=300, max_depth=-1,
-    learning_rate=0.05, num_leaves=31,
-    subsample=0.8, colsample_bytree=0.8,
-    random_state=42, verbosity=-1
-)
+
+lgbm_params = params["lightgbm_params"]
+lgb_estimator = LGBMRegressor(**lgbm_params)
+max_iter = params["iterative_imputation"]["max_iter"]
 
 impute_numerical_iterative = ColumnTransformer(transformers=[
-   ("iterative", IterativeImputer(estimator=lgb_estimator, max_iter=15), num_cols)
+   ("iterative", IterativeImputer(estimator=lgb_estimator,
+                                  max_iter=max_iter), num_cols)
 ], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
 
 # ColumnTransformers for Feature Engineering:
@@ -66,10 +73,16 @@ traffic_categories = ['low', 'medium', 'high', 'jam']
 distance_type_categories = ['short', 'medium', 'long', 'very_long']
 time_categories = ['morning', 'afternoon', "evening", 'night']
 
+
+# parameter for transformation:
+unknown_value = params["ordinal_encoder"]["unknown_value"]
+ohe_params = params["onehot_encoder"]
+
 trf_categorical = ColumnTransformer(transformers=[
     ("ord_cat", OrdinalEncoder(categories=[traffic_categories, distance_type_categories, time_categories],
-                              handle_unknown="use_encoded_value", unknown_value=-1), ord_cat),
-    ("nom_cat", OneHotEncoder(drop="first", handle_unknown="ignore", sparse_output=False), nom_cat)
+                              handle_unknown="use_encoded_value",
+                               unknown_value=unknown_value), ord_cat),
+    ("nom_cat", OneHotEncoder(**ohe_params), nom_cat)
 ], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
 
 trf_categorical.set_output(transform="pandas")

@@ -81,3 +81,32 @@ stages:
       md5: eafa302cca2b638984bb33280bf74af3.dir
       size: 7363236
       nfiles: 2
+  model_building:
+    cmd: python .\src\model\model_building.py
+    deps:
+    - path: .\data\processed\
+      hash: md5
+      md5: eafa302cca2b638984bb33280bf74af3.dir
+      size: 7363236
+      nfiles: 2
+    - path: .\src\model\model_building.py
+      hash: md5
+      md5: 8fd48084e18849e20ce6d2be3898d61a
+      size: 637
+    params:
+      params.yaml:
+        model_building:
+          n_estimators: 1043
+          learning_rate: 0.01184348616544254
+          num_leaves: 137
+          max_depth: 11
+          min_child_samples: 23
+          feature_fraction: 0.7839333790779994
+          bagging_fraction: 0.9697068541421031
+          lambda_l1: 3.972979937157174e-08
+          lambda_l2: 2.639574087334251e-08
+    outs:
+    - path: models\lgbm_regressor.pkl
+      hash: md5
+      md5: b41ade0fb84eb43188fb4b2f4f0d2047
+      size: 12666254

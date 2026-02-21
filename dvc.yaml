@@ -24,3 +24,12 @@ stages:
     - feature_engineering
     outs:
     - .\data\processed\
+  model_building:
+    cmd: python .\src\model\model_building.py
+    deps:
+    - .\data\processed\
+    - .\src\model\model_building.py
+    params:
+    - model_building
+    outs:
+    - models\lgbm_regressor.pkl

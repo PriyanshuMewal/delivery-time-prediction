@@ -29,3 +29,15 @@ feature_engineering:
     drop: "first"
     handle_unknown: "ignore"
     sparse_output: False
+
+model_building:
+
+  "n_estimators": 1043
+  "learning_rate": 0.01184348616544254
+  "num_leaves": 137
+  "max_depth": 11
+  "min_child_samples": 23
+  "feature_fraction": 0.7839333790779994
+  "bagging_fraction": 0.9697068541421031
+  "lambda_l1": 3.972979937157174e-08
+  "lambda_l2": 2.639574087334251e-08
