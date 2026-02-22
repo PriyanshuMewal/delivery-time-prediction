@@ -1,30 +1,51 @@
 import pandas as pd
 import numpy as np
 import os
+import logging
+
+logger = logging.getLogger("data_preprocessing")
+logger.setLevel("DEBUG")
+
+handler = logging.StreamHandler()
+handler.setLevel("DEBUG")
+
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+handler.setFormatter(formatter)
+
+logger.addHandler(handler)
 
 
 # load data:
 def load_data(train_url: str, test_url: str) -> tuple:
+    logger.info(f"Loading training data from {train_url} and test data from {test_url}")
+
     try:
         train_df = pd.read_csv(train_url)
     except FileNotFoundError:
-        raise FileNotFoundError(f"Training file not found: {train_url}")
+        logger.error(f"Training file not found: {train_url}")
+        raise
     except pd.errors.ParserError as e:
-        raise ValueError(f"Failed to parse training CSV: {e}")
+        logger.error(f"Failed to parse training CSV: {e}")
+        raise
 
     try:
         test_df = pd.read_csv(test_url)
     except FileNotFoundError:
-        raise FileNotFoundError(f"Test file not found: {test_url}")
+        logger.error(f"Test file not found: {test_url}")
+        raise
     except pd.errors.ParserError as e:
-        raise ValueError(f"Failed to parse test CSV: {e}")
+        logger.error(f"Failed to parse test CSV: {e}")
+        raise
 
+    logger.info("Data loaded successfully.")
     return train_df, test_df
 
 
 # Calculate time of the day:
 def time_of_day(col):
+
     if col.isna().all():
+        logger.error("There are only NaN values investigate the data or the data_ingestion file.")
         raise ValueError("order_time_hour column contains only NaN values")
 
     return pd.cut(
@@ -36,11 +57,13 @@ def time_of_day(col):
 
 # Calculate distance from the lat-long details:
 def calculate_distance(df: pd.DataFrame):
+    logger.info("Calculating distances for longitude and latitude values ...")
 
     required_cols = ["rest_lat", "rest_long", "delivery_lat", "delivery_long"]
     missing = [col for col in required_cols if col not in df.columns]
 
     if missing:
+        logger.error(f"{missing} -> these columns are missing investigate the data or data_ingestion file.")
         raise KeyError(f"Missing columns for distance calculation: {missing}")
 
     try:
@@ -49,7 +72,8 @@ def calculate_distance(df: pd.DataFrame):
         lat2 = df["delivery_lat"].astype(float)
         long2 = df["delivery_long"].astype(float)
     except ValueError:
-        raise ValueError("Latitude/Longitude columns must be numeric")
+        logger.error("Latitude/Longitude columns must be numeric")
+        raise
 
     long1, lat1, long2, lat2 = map(np.radians, [long1, lat1, long2, lat2])
 
@@ -63,8 +87,10 @@ def calculate_distance(df: pd.DataFrame):
 
 # Calculate the time taken by the rider to pick the order up:
 def calculate_pickup_time(df: pd.DataFrame):
+    logger.info("Calculating pickup_time from existing columns ...")
 
     if "picked_time" not in df.columns or "ordered_time" not in df.columns:
+        logger.error("Check data_ingestion file or data file because few columns are missing.")
         raise KeyError("Missing picked_time or ordered_time columns")
 
     picked_time = pd.to_datetime(
@@ -87,6 +113,7 @@ def calculate_pickup_time(df: pd.DataFrame):
 
 # Clean data:
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
+    logger.info("Cleaning data ...")
 
     required_cols = [
         "weather", "time", "id", "age", "ratings", "traffic",
@@ -97,8 +124,10 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
     missing = [c for c in required_cols if c not in df.columns]
     if missing:
+        logger.error(f"{missing} -> these columns are missing investigate the previous steps.")
         raise KeyError(f"Missing required columns: {missing}")
 
+    logger.debug("fixing 'weather' column values and extracting city names from 'id' column.")
     # fix string columns safely
     df["weather"] = df["weather"].astype(str).str.replace("conditions ", "").str.strip()
 
@@ -113,12 +142,14 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
             .astype(np.float32)
         )
     except ValueError:
-        raise ValueError("Failed to parse target column 'time'")
+        logger.error("Failed to parse target column 'time'")
+        raise
 
     df["id"] = df["id"].astype(str).str.split("RES").str.get(0)
     df.rename(columns={"id": "city"}, inplace=True)
 
     # remove leading and trailing spaces:
+    logger.debug("removing leading and trailing spaces from nearly all the columns and 'NaN' to np.nan .")
     cat_col = ["age", "ratings", "city", "weather", "traffic", "order_type",
                "vehicle_type", "multi_deliveries","festival", "city_type"]
 
@@ -129,6 +160,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df.replace("NaN", np.nan, inplace=True)
 
     # Individually cleaning each column:
+    logger.debug("fix dtype of 'age' and 'rating' and remove some noisy data.")
     # age:
     df["age"] = pd.to_numeric(df["age"], errors="coerce")
     df.drop(index=df[df["age"] < 18].index, inplace=True)
@@ -141,6 +173,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df.reset_index(drop=True, inplace=True)
 
     # convert date column to datetime:
+    logger.debug("date_time columns data-type fix.")
     df["date"] = pd.to_datetime(df["date"], format="%d-%m-%Y", errors="coerce")
 
     # Change ordered_time and picked_time to time object:
@@ -149,6 +182,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df["picked_time"] = pd.to_datetime(df["picked_time"], format="%H:%M:%S",
                                        errors="coerce").dt.time
 
+    logger.debug("generate new columns from date_time columns.")
     df["order_day"] = df["date"].dt.day
     df["order_month"] = df["date"].dt.month
     df["order_day_of_week"] = df["date"].dt.day_name().str.lower()
@@ -165,6 +199,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
                                                       "long", "very_long"])
 
     # drop rows where missing values are more than 7:
+    logger.debug("remove some NaN heavy data and useless columns.")
     df = df[df.isna().sum(axis=1) <= 7]
 
     # Drop unnecessary columns:
@@ -174,29 +209,37 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
                     "ordered_time", "picked_time"]
 
     df.drop(columns=cols_to_drop, errors="ignore",  inplace=True)
-    
+
+    logger.info("Data cleaned successfully.")
     return df
 
 
 # store data:
 def save_data(train_df: pd.DataFrame,
               test_df: pd.DataFrame, url: str) -> None:
+    logger.info("Saving the data ... ")
 
     path = os.path.join("data", url)
 
     try:
         os.makedirs(path, exist_ok=True)
     except OSError as e:
-        raise OSError(f"Failed to create directory {path}: {e}")
+        logger.error(f"Failed to create directory {path}: {e}")
+        raise
 
     try:
         train_df.to_csv(os.path.join(path, "train_cleaned.csv"), index=False)
         test_df.to_csv(os.path.join(path, "test_cleaned.csv"), index=False)
     except IOError as e:
-        raise IOError(f"Failed to save cleaned CSV files: {e}")
+        logger.error(f"Failed to save cleaned CSV files: {e}")
+        raise
+
+    logger.info("Data files saved successfully after cleaning.")
 
 
 def main() -> None:
+    logger.info("Data cleaning stage started ...")
+
     try:
         # load data:
         train_url = "data/raw/train_df.csv"
@@ -213,17 +256,22 @@ def main() -> None:
         save_data(train_cleaned, test_cleaned, url)
 
     except FileNotFoundError as e:
-        raise RuntimeError(f"[DATA LOADING ERROR] {e}")
+        logger.error(f"[DATA LOADING ERROR] {e}")
+        raise
 
     except KeyError as e:
-        raise RuntimeError(f"[SCHEMA ERROR] Missing or invalid column: {e}")
+        logger.error(f"[SCHEMA ERROR] Missing or invalid column: {e}")
+        raise
 
     except ValueError as e:
-        raise RuntimeError(f"[DATA VALIDATION ERROR] {e}")
+        logger.error(f"[DATA VALIDATION ERROR] {e}")
+        raise
 
     except OSError as e:
-        raise RuntimeError(f"[FILE SYSTEM ERROR] {e}")
+        logger.error(f"[FILE SYSTEM ERROR] {e}")
+        raise
 
+    logger.info("Data Cleaning Stage completed successfully.")
 
 if __name__ == "__main__":
     main()

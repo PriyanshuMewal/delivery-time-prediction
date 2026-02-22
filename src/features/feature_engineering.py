@@ -12,25 +12,44 @@ import yaml
 
 from sklearn import set_config
 set_config(transform_output="pandas")
+import logging
+
+logger = logging.getLogger("data_ingestion")
+logger.setLevel("DEBUG")
+
+handler = logging.StreamHandler()
+handler.setLevel("DEBUG")
+
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+handler.setFormatter(formatter)
+
+logger.addHandler(handler)
 
 
 # load data and parameters:
 def load_data(train_url: str, test_url: str) -> tuple:
+    logger.info(f"Loading training data from {train_url} and test data from {test_url}")
+
     try:
         train_df = pd.read_csv(train_url)
     except FileNotFoundError:
-        raise FileNotFoundError(f"Training file not found: {train_url}")
+        logger.error(f"Training file not found: {train_url}")
+        raise
     except pd.errors.ParserError as e:
-        raise ValueError(f"Failed to parse training CSV: {e}")
+        logger.error(f"Failed to parse training CSV: {e}")
+        raise
 
     try:
         test_df = pd.read_csv(test_url)
     except FileNotFoundError:
-        raise FileNotFoundError(f"Test file not found: {test_url}")
+        logger.error(f"Test file not found: {test_url}")
+        raise
     except pd.errors.ParserError as e:
-        raise ValueError(f"Failed to parse test CSV: {e}")
+        logger.error(f"Failed to parse test CSV: {e}")
+        raise
 
     if "time" not in train_df.columns or "time" not in test_df.columns:
+        logger.error("Target column 'time' is missing ")
         raise KeyError("Target column 'time' not found in input data")
 
     X_train = train_df.drop(columns=["time"])
@@ -39,21 +58,29 @@ def load_data(train_url: str, test_url: str) -> tuple:
     X_test = test_df.drop(columns=["time"])
     y_test = test_df["time"]
 
+    logger.info("Data loaded successfully.")
     return X_train, X_test, y_train, y_test
 
 def load_params(param_url: str) -> dict:
+    logger.info(f"Loading parameter from {param_url}.")
+
     try:
         with open(param_url, "r") as file:
             params = yaml.safe_load(file)
     except FileNotFoundError:
-        raise FileNotFoundError(f"Params file not found: {param_url}")
+        logger.error(f"Params file not found: {param_url}")
+        raise
     except yaml.YAMLError as e:
-        raise ValueError(f"Invalid YAML file: {e}")
+        logger.error(f"Invalid YAML file: {e}")
+        raise
+
+    logger.info("Parameters loaded successfully.")
 
     try:
         return params["feature_engineering"]
     except (TypeError, KeyError):
-        raise KeyError("Missing 'feature_engineering' section in params.yaml")
+        logger.error("Missing 'feature_engineering' section in params.yaml")
+        raise
 
 
 # Create pipeline to transform the features:
@@ -68,11 +95,14 @@ def mode_imputation(X: pd.DataFrame) -> pd.DataFrame:
         try:
             X[col] = X[col].fillna(modes_[col]).astype(dtypes_[col])
         except Exception as e:
-            raise ValueError(f"Mode imputation failed for column '{col}': {e}")
+            logger.error(f"Mode imputation failed for column '{col}': {e}")
+            raise
 
     return X
 
 def create_transformer_pipeline(params: dict) -> Pipeline:
+    logger.info("Creating transformation pipeline ...")
+
     required_keys = [
         "const_imputation",
         "iterative_imputation",
@@ -83,9 +113,12 @@ def create_transformer_pipeline(params: dict) -> Pipeline:
 
     missing = [k for k in required_keys if k not in params]
     if missing:
+        logger.error(f"{missing} -> these params are missing check the params.yaml")
         raise KeyError(f"Missing required parameters: {missing}")
 
     # ColumnTransformers for Imputation:
+    logger.debug("Creating imputation column-transformers ...")
+
     num_cols = ["age", "ratings", "pickup_time"]
     mode_impute = ["multi_deliveries", "festival", "city_type"]
     random_impute = ["weather", "traffic", "order_time_of_day"]
@@ -111,6 +144,8 @@ def create_transformer_pipeline(params: dict) -> Pipeline:
     ], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
 
     # ColumnTransformers for Feature Engineering:
+    logger.debug("Creating column-transformer for encoding categorical columns.")
+
     nom_cat = ["weather", "order_type", "vehicle_type", "festival", "city_type"]
     ord_cat = ["traffic", "distance_type", "order_time_of_day"]
     numerical = ["age", "ratings", "pickup_time", "distance"]
@@ -139,6 +174,8 @@ def create_transformer_pipeline(params: dict) -> Pipeline:
 
     trf_numerical.set_output(transform="pandas")
 
+
+    logger.debug("Creating final pipeline ...")
     final_preprocessing = Pipeline(steps=[
         ("impute_cat", impute_categorical_const),
         ("trf_cat", trf_categorical),
@@ -146,6 +183,7 @@ def create_transformer_pipeline(params: dict) -> Pipeline:
         ("trf_num", trf_numerical),
     ])
 
+    logger.info("Pipeline created.")
     return final_preprocessing
 
 
@@ -153,19 +191,24 @@ def create_transformer_pipeline(params: dict) -> Pipeline:
 def transform_features(X_train: pd.DataFrame,
                        X_test: pd.DataFrame,
                        pipeline: Pipeline):
+    logger.info("transforming features -> imputation + ecoding and scaling")
 
     try:
         processed_X_train = pipeline.fit_transform(X_train)
         processed_X_test = pipeline.transform(X_test)
     except Exception as e:
-        raise RuntimeError(f"Feature transformation failed: {e}")
+        logger.error(f"Feature transformation failed: {e}")
+        raise
 
+    logger.info("features transformed successfully.")
     return processed_X_train, processed_X_test
 
 def transform_target(y_train: pd.Series,
                      y_test: pd.Series):
+    logger.info("Transform target column ...")
 
     if y_train.empty or y_test.empty:
+        logger.error("Oh!, wait it's empty bro, check the preprocessing pipeline.")
         raise ValueError("Target series is empty")
 
     try:
@@ -181,13 +224,16 @@ def transform_target(y_train: pd.Series,
             name=y_test.name
         )
     except Exception as e:
-        raise RuntimeError(f"Target scaling failed: {e}")
+        logger.error(f"Target scaling failed: {e}")
+        raise
 
+    logger.info("Target scaled successfully.")
     return y_train_scaled, y_test_scaled, scaler
 
 # Store transformed data and Standard Scaler:
 def save_data(train_df: pd.DataFrame, test_df: pd.DataFrame,
               data_url: str, scaler: StandardScaler) -> None:
+    logger.info("Saving the training and testing data after feature engineering and also the scaler for target")
 
     path = os.path.join("data", data_url)
 
@@ -195,22 +241,27 @@ def save_data(train_df: pd.DataFrame, test_df: pd.DataFrame,
         os.makedirs(path, exist_ok=True)
         os.makedirs("models", exist_ok=True)
     except OSError as e:
-        raise OSError(f"Failed to create output directories: {e}")
+        logger.error(f"Failed to create output directories: {e}")
+        raise
 
     try:
         train_df.to_csv(os.path.join(path, "train_processed.csv"), index=False)
         test_df.to_csv(os.path.join(path, "test_processed.csv"), index=False)
     except IOError as e:
-        raise IOError(f"Failed to save processed CSV files: {e}")
+        logger.error(f"Failed to save processed CSV files: {e}")
+        raise
 
     try:
         with open(os.path.join("models", "scaler.pkl"), "wb") as file:
             pickle.dump(scaler, file)
     except IOError as e:
-        raise IOError(f"Failed to save scaler object: {e}")
+        logger.error(f"Failed to save scaler object: {e}")
+        raise
 
+    logger.info("Everything saved successfully!")
 
 def main() -> None:
+    logger.info("feature engineering stage started ...")
     try:
         train_url = "data/interim/train_cleaned.csv"
         test_url = "data/interim/test_cleaned.csv"
@@ -231,19 +282,26 @@ def main() -> None:
         save_data(X_train_trf, X_test_trf, "processed", scaler)
 
     except FileNotFoundError as e:
-        raise RuntimeError(f"[FILE ERROR] {e}")
+        logger.error(f"[FILE ERROR] {e}")
+        raise
 
     except KeyError as e:
-        raise RuntimeError(f"[SCHEMA / PARAM ERROR] {e}")
+        logger.error(f"[SCHEMA / PARAM ERROR] {e}")
+        raise
 
     except ValueError as e:
-        raise RuntimeError(f"[DATA ERROR] {e}")
+        logger.error(f"[DATA ERROR] {e}")
+        raise
 
     except RuntimeError:
+        logger.error("Some runtime error occurred.")
         raise
 
     except Exception as e:
-        raise RuntimeError(f"[UNEXPECTED ERROR] {e}")
+        logger.error(f"[UNEXPECTED ERROR] {e}")
+        raise
+
+    logger.info("Feature engineering stage completed successfully.")
 
 
 if __name__ == "__main__":
