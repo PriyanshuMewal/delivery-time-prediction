@@ -9,122 +9,242 @@ from sklearn.preprocessing import StandardScaler
 import os
 import pickle
 import yaml
+
 from sklearn import set_config
 set_config(transform_output="pandas")
 
+
 # load data and parameters:
-train_df = pd.read_csv("data/interim/train_cleaned.csv")
-test_df = pd.read_csv("data/interim/test_cleaned.csv")
+def load_data(train_url: str, test_url: str) -> tuple:
+    try:
+        train_df = pd.read_csv(train_url)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Training file not found: {train_url}")
+    except pd.errors.ParserError as e:
+        raise ValueError(f"Failed to parse training CSV: {e}")
 
-with open("params.yaml", mode="rb") as file:
-    params = yaml.safe_load(file)["feature_engineering"]
+    try:
+        test_df = pd.read_csv(test_url)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Test file not found: {test_url}")
+    except pd.errors.ParserError as e:
+        raise ValueError(f"Failed to parse test CSV: {e}")
 
-X_train = train_df.drop(columns=["time"])
-y_train = train_df["time"]
+    if "time" not in train_df.columns or "time" not in test_df.columns:
+        raise KeyError("Target column 'time' not found in input data")
 
-X_test = test_df.drop(columns=["time"])
-y_test = test_df["time"]
+    X_train = train_df.drop(columns=["time"])
+    y_train = train_df["time"]
+
+    X_test = test_df.drop(columns=["time"])
+    y_test = test_df["time"]
+
+    return X_train, X_test, y_train, y_test
+
+def load_params(param_url: str) -> dict:
+    try:
+        with open(param_url, "r") as file:
+            params = yaml.safe_load(file)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Params file not found: {param_url}")
+    except yaml.YAMLError as e:
+        raise ValueError(f"Invalid YAML file: {e}")
+
+    try:
+        return params["feature_engineering"]
+    except (TypeError, KeyError):
+        raise KeyError("Missing 'feature_engineering' section in params.yaml")
 
 
-# Mode imputation:
-def mode_imputation(X):
+# Create pipeline to transform the features:
+def mode_imputation(X: pd.DataFrame) -> pd.DataFrame:
+    if X.empty:
+        raise ValueError("Empty DataFrame passed to mode_imputation")
 
     modes_ = X.mode(dropna=True).iloc[0]
     dtypes_ = X.dtypes
 
     for col in X.columns:
-        X[col] = X[col].fillna(modes_[col]).astype(dtypes_[col])
+        try:
+            X[col] = X[col].fillna(modes_[col]).astype(dtypes_[col])
+        except Exception as e:
+            raise ValueError(f"Mode imputation failed for column '{col}': {e}")
 
     return X
 
-# Create column_transformer for further transformations:
+def create_transformer_pipeline(params: dict) -> Pipeline:
+    required_keys = [
+        "const_imputation",
+        "iterative_imputation",
+        "ordinal_encoder",
+        "onehot_encoder",
+        "lightgbm_params"
+    ]
 
-# ColumnTransformers for Imputation:
-num_cols = ["age", "ratings", "pickup_time"]
-mode_impute = ["multi_deliveries", "festival", "city_type"]
-random_impute = ["weather", "traffic", "order_time_of_day"]
+    missing = [k for k in required_keys if k not in params]
+    if missing:
+        raise KeyError(f"Missing required parameters: {missing}")
 
-# parameters for imputation:
-strategy = params["const_imputation"]["strategy"]
-fill_value = params["const_imputation"]["fill_value"]
+    # ColumnTransformers for Imputation:
+    num_cols = ["age", "ratings", "pickup_time"]
+    mode_impute = ["multi_deliveries", "festival", "city_type"]
+    random_impute = ["weather", "traffic", "order_time_of_day"]
 
-impute_categorical_const = ColumnTransformer(transformers=[
-    ("mode_imputation", FunctionTransformer(mode_imputation), mode_impute),
-    ("const_imputation", SimpleImputer(strategy=strategy,
-                                       fill_value=fill_value), random_impute),
-], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
+    # parameters for imputation:
+    strategy = params["const_imputation"]["strategy"]
+    fill_value = params["const_imputation"]["fill_value"]
 
-
-lgbm_params = params["lightgbm_params"]
-lgb_estimator = LGBMRegressor(**lgbm_params)
-max_iter = params["iterative_imputation"]["max_iter"]
-
-impute_numerical_iterative = ColumnTransformer(transformers=[
-   ("iterative", IterativeImputer(estimator=lgb_estimator,
-                                  max_iter=max_iter), num_cols)
-], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
-
-# ColumnTransformers for Feature Engineering:
-nom_cat = ["weather", "order_type", "vehicle_type", "festival", "city_type"]
-ord_cat = ["traffic", "distance_type", "order_time_of_day"]
-numerical = ["age", "ratings", "pickup_time", "distance"]
-
-traffic_categories = ['low', 'medium', 'high', 'jam']
-distance_type_categories = ['short', 'medium', 'long', 'very_long']
-time_categories = ['morning', 'afternoon', "evening", 'night']
+    impute_categorical_const = ColumnTransformer(transformers=[
+        ("mode_imputation", FunctionTransformer(mode_imputation), mode_impute),
+        ("const_imputation", SimpleImputer(strategy=strategy,
+                                           fill_value=fill_value), random_impute),
+    ], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
 
 
-# parameter for transformation:
-unknown_value = params["ordinal_encoder"]["unknown_value"]
-ohe_params = params["onehot_encoder"]
+    lgbm_params = params["lightgbm_params"]
+    lgb_estimator = LGBMRegressor(**lgbm_params)
+    max_iter = params["iterative_imputation"]["max_iter"]
 
-trf_categorical = ColumnTransformer(transformers=[
-    ("ord_cat", OrdinalEncoder(categories=[traffic_categories, distance_type_categories, time_categories],
-                              handle_unknown="use_encoded_value",
-                               unknown_value=unknown_value), ord_cat),
-    ("nom_cat", OneHotEncoder(**ohe_params), nom_cat)
-], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
+    impute_numerical_iterative = ColumnTransformer(transformers=[
+       ("iterative", IterativeImputer(estimator=lgb_estimator,
+                                      max_iter=max_iter), num_cols)
+    ], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
 
-trf_categorical.set_output(transform="pandas")
+    # ColumnTransformers for Feature Engineering:
+    nom_cat = ["weather", "order_type", "vehicle_type", "festival", "city_type"]
+    ord_cat = ["traffic", "distance_type", "order_time_of_day"]
+    numerical = ["age", "ratings", "pickup_time", "distance"]
 
-trf_numerical = ColumnTransformer(transformers=[
-    ("num", MinMaxScaler(), numerical)
-], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
-
-trf_numerical.set_output(transform="pandas")
-
-final_preprocessing = Pipeline(steps=[
-    ("impute_cat", impute_categorical_const),
-    ("trf_cat", trf_categorical),
-    ("impute_num", impute_numerical_iterative),
-    ("trf_num", trf_numerical),
-])
+    traffic_categories = ['low', 'medium', 'high', 'jam']
+    distance_type_categories = ['short', 'medium', 'long', 'very_long']
+    time_categories = ['morning', 'afternoon', "evening", 'night']
 
 
-# Transform feature space:
-processed_X_train = final_preprocessing.fit_transform(X_train)
-processed_X_test = final_preprocessing.transform(X_test)
+    # parameter for transformation:
+    unknown_value = params["ordinal_encoder"]["unknown_value"]
+    ohe_params = params["onehot_encoder"]
 
-# Transform Target Column:
-scaler = StandardScaler()
+    trf_categorical = ColumnTransformer(transformers=[
+        ("ord_cat", OrdinalEncoder(categories=[traffic_categories, distance_type_categories, time_categories],
+                                  handle_unknown="use_encoded_value",
+                                   unknown_value=unknown_value), ord_cat),
+        ("nom_cat", OneHotEncoder(**ohe_params), nom_cat)
+    ], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
 
-y_train_scaled = pd.Series(scaler.fit_transform(y_train.values.reshape(y_train.shape[0], 1)).values.ravel(),
-                           index=y_train.index, name=y_train.name)
-y_test_scaled = pd.Series(scaler.transform(y_test.values.reshape(y_test.shape[0], 1)).values.ravel(),
-                           index=y_test.index, name=y_test.name)
+    trf_categorical.set_output(transform="pandas")
 
-processed_X_train["time"] = y_train_scaled
-processed_X_test["time"] = y_test_scaled
+    trf_numerical = ColumnTransformer(transformers=[
+        ("num", MinMaxScaler(), numerical)
+    ], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
 
+    trf_numerical.set_output(transform="pandas")
+
+    final_preprocessing = Pipeline(steps=[
+        ("impute_cat", impute_categorical_const),
+        ("trf_cat", trf_categorical),
+        ("impute_num", impute_numerical_iterative),
+        ("trf_num", trf_numerical),
+    ])
+
+    return final_preprocessing
+
+
+# Transform feature space and target column:
+def transform_features(X_train: pd.DataFrame,
+                       X_test: pd.DataFrame,
+                       pipeline: Pipeline):
+
+    try:
+        processed_X_train = pipeline.fit_transform(X_train)
+        processed_X_test = pipeline.transform(X_test)
+    except Exception as e:
+        raise RuntimeError(f"Feature transformation failed: {e}")
+
+    return processed_X_train, processed_X_test
+
+def transform_target(y_train: pd.Series,
+                     y_test: pd.Series):
+
+    if y_train.empty or y_test.empty:
+        raise ValueError("Target series is empty")
+
+    try:
+        scaler = StandardScaler()
+        y_train_scaled = pd.Series(
+            scaler.fit_transform(y_train.values.reshape(-1, 1)).values.ravel(),
+            index=y_train.index,
+            name=y_train.name
+        )
+        y_test_scaled = pd.Series(
+            scaler.transform(y_test.values.reshape(-1, 1)).values.ravel(),
+            index=y_test.index,
+            name=y_test.name
+        )
+    except Exception as e:
+        raise RuntimeError(f"Target scaling failed: {e}")
+
+    return y_train_scaled, y_test_scaled, scaler
 
 # Store transformed data and Standard Scaler:
-path = os.path.join("data", "processed")
+def save_data(train_df: pd.DataFrame, test_df: pd.DataFrame,
+              data_url: str, scaler: StandardScaler) -> None:
 
-os.mkdir(path)
+    path = os.path.join("data", data_url)
 
-processed_X_train.to_csv(os.path.join(path, "train_processed.csv"), index=False)
-processed_X_test.to_csv(os.path.join(path, "test_processed.csv"),  index=False)
+    try:
+        os.makedirs(path, exist_ok=True)
+        os.makedirs("models", exist_ok=True)
+    except OSError as e:
+        raise OSError(f"Failed to create output directories: {e}")
 
-with open(os.path.join("reports", "scaler.pkl"), "wb") as file:
-    pickle.dump(scaler, file)
+    try:
+        train_df.to_csv(os.path.join(path, "train_processed.csv"), index=False)
+        test_df.to_csv(os.path.join(path, "test_processed.csv"), index=False)
+    except IOError as e:
+        raise IOError(f"Failed to save processed CSV files: {e}")
 
+    try:
+        with open(os.path.join("models", "scaler.pkl"), "wb") as file:
+            pickle.dump(scaler, file)
+    except IOError as e:
+        raise IOError(f"Failed to save scaler object: {e}")
+
+
+def main() -> None:
+    try:
+        train_url = "data/interim/train_cleaned.csv"
+        test_url = "data/interim/test_cleaned.csv"
+
+        X_train, X_test, y_train, y_test = load_data(train_url, test_url)
+
+        param_url = "params.yaml"
+        params = load_params(param_url)
+
+        pipeline = create_transformer_pipeline(params)
+
+        X_train_trf, X_test_trf = transform_features(X_train, X_test, pipeline)
+        y_train_trf, y_test_trf, scaler = transform_target(y_train, y_test)
+
+        X_train_trf["time"] = y_train_trf
+        X_test_trf["time"] = y_test_trf
+
+        save_data(X_train_trf, X_test_trf, "processed", scaler)
+
+    except FileNotFoundError as e:
+        raise RuntimeError(f"[FILE ERROR] {e}")
+
+    except KeyError as e:
+        raise RuntimeError(f"[SCHEMA / PARAM ERROR] {e}")
+
+    except ValueError as e:
+        raise RuntimeError(f"[DATA ERROR] {e}")
+
+    except RuntimeError:
+        raise
+
+    except Exception as e:
+        raise RuntimeError(f"[UNEXPECTED ERROR] {e}")
+
+
+if __name__ == "__main__":
+    main()
