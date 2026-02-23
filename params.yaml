@@ -12,7 +12,7 @@ feature_engineering:
     estimator: "LGBMRegressor"
     max_iter: 15
 
-  lightgbm_params:
+  lgbm_estimator:
     n_estimators: 300
     max_depth: -1
     learning_rate: 0.05

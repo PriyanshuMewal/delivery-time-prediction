@@ -6,8 +6,12 @@ import pickle
 from lightgbm import LGBMRegressor
 import os
 import logging
+import mlflow
+import dagshub
+import mlflow.sklearn
+import yaml
 
-logger = logging.getLogger("data_ingestion")
+logger = logging.getLogger("model_evaluation")
 logger.setLevel("DEBUG")
 
 handler = logging.StreamHandler()
@@ -18,6 +22,22 @@ handler.setFormatter(formatter)
 
 logger.addHandler(handler)
 
+
+# Authenticate with dagshub:
+def dagshub_authentication(experiment_name) -> None:
+    logger.info("Authenticating with Dagshub ...")
+
+    try:
+        mlflow.set_tracking_uri("https://dagshub.com/PriyanshuMewal/delivery-time-prediction.mlflow")
+        dagshub.init(repo_owner='PriyanshuMewal', repo_name='delivery-time-prediction', mlflow=True)
+
+    except Exception as e:
+        logger.error(f"Authentication Failed: {e}")
+        raise
+
+    mlflow.set_experiment(experiment_name)
+
+    logger.info("Dagshub Authentication Completed Successfully!")
 
 # Load data:
 def load_data(train_url: str, test_url: str) -> tuple:
@@ -57,6 +77,24 @@ def load_data(train_url: str, test_url: str) -> tuple:
 
     logger.info("Dataset loaded successfully.")
     return X_train, X_test, y_train, y_test
+
+# load parameters:
+def load_params(param_url: str) -> dict:
+    logger.info(f"Loading parameter from {param_url}.")
+
+    try:
+        with open(param_url, "r") as file:
+            params = yaml.safe_load(file)
+    except FileNotFoundError:
+        logger.error(f"Params file not found: {param_url}")
+        raise
+    except yaml.YAMLError as e:
+        logger.error(f"Invalid YAML file: {e}")
+        raise
+
+    logger.info("Parameters loaded successfully.")
+
+    return params
 
 # load model:
 def load_model(model_url: str) -> LGBMRegressor:
@@ -176,6 +214,55 @@ def main() -> None:
 
     logger.info("Model evaluated successfully.")
 
+    # log everything
+    logger.info("Logging parameters, metrics, model, dataset and adding some tags ...")
+    dagshub_authentication(experiment_name="DVC Pipeline Check")
+
+    with mlflow.start_run():
+
+        # logging parameters:
+        path = "params.yaml"
+        all_params = load_params(path)
+
+        try:
+            for stage, params in all_params.items():
+
+                if stage == "feature_engineering":
+                    for transformer, hyper_params in params.items():
+                        for parameter, values in hyper_params.items():
+                            mlflow.log_param(f"fe__{transformer}__{parameter}", values)
+                else:
+                    mlflow.log_params(params)
+        except Exception as e:
+            logger.error(f"Parameter logging failed because of the following error: \n{e}")
+            raise
+        else:
+            logger.debug("Parameters are logged successfully.")
+
+        # logging metrics and model:
+        mlflow.log_metrics(metrics)
+        logger.debug("Metrics logged successfully.")
+
+        try:
+            model_signature = mlflow.models.infer_signature(X_test, model.predict(X_test))
+            mlflow.sklearn.log_model(model, signature=model_signature,
+                                              registered_model_name="LGBRegressor")
+        except Exception as e:
+            logger.error(f"Model logging Failed because of following error: \n {e}")
+            raise
+
+        logger.debug("Model logged and registered successfully.")
+
+        # Logging datasets:
+        mlflow.log_artifact(train_url)
+        mlflow.log_artifact(test_url)
+
+        # Setting few tags:
+        mlflow.set_tags({"Experiment Type": "Regression Problem",
+                         "Author": "Priyanshu Mewal",
+                         "Best Performers": "XGBRegressor, LGBRegressor and CatboostRegressor"})
+
+        logger.info("Everything Logged Successfully!")
 
 if __name__ == "__main__":
     main()

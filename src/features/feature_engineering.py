@@ -14,7 +14,7 @@ from sklearn import set_config
 set_config(transform_output="pandas")
 import logging
 
-logger = logging.getLogger("data_ingestion")
+logger = logging.getLogger("feature_engineering")
 logger.setLevel("DEBUG")
 
 handler = logging.StreamHandler()
@@ -108,7 +108,7 @@ def create_transformer_pipeline(params: dict) -> Pipeline:
         "iterative_imputation",
         "ordinal_encoder",
         "onehot_encoder",
-        "lightgbm_params"
+        "lgbm_estimator"
     ]
 
     missing = [k for k in required_keys if k not in params]
@@ -134,7 +134,7 @@ def create_transformer_pipeline(params: dict) -> Pipeline:
     ], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
 
 
-    lgbm_params = params["lightgbm_params"]
+    lgbm_params = params["lgbm_estimator"]
     lgb_estimator = LGBMRegressor(**lgbm_params)
     max_iter = params["iterative_imputation"]["max_iter"]
 

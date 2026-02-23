@@ -5,7 +5,7 @@ import os
 import pickle
 import logging
 
-logger = logging.getLogger("data_ingestion")
+logger = logging.getLogger("model_building")
 logger.setLevel("DEBUG")
 
 handler = logging.StreamHandler()

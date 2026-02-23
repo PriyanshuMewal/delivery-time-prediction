@@ -1,0 +1,4 @@
+[core]
+    remote = myremote
+['remote "myremote"']
+    url = C:\Users\RR\AppData\Local\Temp\delivery_time_prediction
