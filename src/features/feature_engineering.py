@@ -128,7 +128,7 @@ def create_transformer_pipeline(params: dict) -> Pipeline:
     fill_value = params["const_imputation"]["fill_value"]
 
     impute_categorical_const = ColumnTransformer(transformers=[
-        ("mode_imputation", FunctionTransformer(mode_imputation), mode_impute),
+        ("mode_imputation", FunctionTransformer(mode_imputation, validate=False), mode_impute),
         ("const_imputation", SimpleImputer(strategy=strategy,
                                            fill_value=fill_value), random_impute),
     ], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
