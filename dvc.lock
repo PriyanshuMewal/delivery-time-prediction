@@ -103,8 +103,8 @@ stages:
           min_child_samples: 23
           feature_fraction: 0.7839333790779994
           bagging_fraction: 0.9697068541421031
-          lambda_l1: 3.972979937157174e-08
-          lambda_l2: 2.639574087334251e-08
+          lambda_l1: 3.972979937157173e-08
+          lambda_l2: 2.639574087334250e-08
           verbose: -1
     outs:
     - path: models\lgbm_regressor.pkl
@@ -125,10 +125,35 @@ stages:
       size: 12666292
     - path: .\src\model\model_evaluation.py
       hash: md5
-      md5: f02e2bc2530da1111fff1445bd19bdcf
-      size: 5659
+      md5: 9a56c6c559309bd7f65597552bcf5f65
+      size: 9257
     outs:
     - path: reports/metrics.json
       hash: md5
       md5: 63f023d6de3db8f93b014ba0d3f38582
       size: 249
+    - path: reports/model_info.json
+      hash: md5
+      md5: 99f84dda34f727c563c25999c0018c43
+      size: 53
+  model_registry:
+    cmd: python .\src\model\model_registry.py
+    deps:
+    - path: .\src\model\model_registry.py
+      hash: md5
+      md5: daf7675d3767f91866f001e4e5c326b1
+      size: 4173
+    - path: reports/model_info.json
+      hash: md5
+      md5: 99f84dda34f727c563c25999c0018c43
+      size: 53
+    params:
+      params.yaml:
+        model_registry:
+          model_description: This is a delivery time prediction model.
+          model_tags:
+            Experiment: Delivery time prediction
+            Author: Priyanshu Mewal
+            Date: 24-02-2026
+          model_stage: Staging
+          model_alias: challenger

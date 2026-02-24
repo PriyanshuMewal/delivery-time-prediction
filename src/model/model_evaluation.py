@@ -243,19 +243,32 @@ def main() -> None:
         mlflow.log_metrics(metrics)
         logger.debug("Metrics logged successfully.")
 
+        model_name = "LGBRegressor"
         try:
             model_signature = mlflow.models.infer_signature(X_test, model.predict(X_test))
-            mlflow.sklearn.log_model(model, signature=model_signature,
-                                              registered_model_name="LGBRegressor")
+            model_info = mlflow.sklearn.log_model(model, signature=model_signature,
+                                              registered_model_name=model_name)
         except Exception as e:
             logger.error(f"Model logging Failed because of following error: \n {e}")
+            raise
+
+        version = model_info.registered_model_version
+        path = "reports/model_info.json"
+        try:
+            with open(path, "w") as file:
+
+                model_info = {"name": model_name, "version": version}
+                json.dump(model_info, file, indent=4)
+
+        except Exception as e:
+            logger.error(f"Saving model info failed because of the following error \n {e}")
             raise
 
         logger.debug("Model logged and registered successfully.")
 
         # Logging datasets:
-        mlflow.log_artifact(train_url)
-        mlflow.log_artifact(test_url)
+        # mlflow.log_artifact(train_url)
+        # mlflow.log_artifact(test_url)
 
         # Setting few tags:
         mlflow.set_tags({"Experiment Type": "Regression Problem",

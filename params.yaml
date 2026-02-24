@@ -42,3 +42,14 @@ model_building:
   "lambda_l1": 3.972979937157174e-08
   "lambda_l2": 2.639574087334251e-08
   "verbose": -1
+
+model_registry:
+
+  model_description: "This is a delivery time prediction model."
+  model_tags:
+    Experiment: "Delivery time prediction"
+    Author: "Priyanshu Mewal"
+    Date: "24-02-2026"
+
+  model_stage: "Staging"
+  model_alias: "challenger"
