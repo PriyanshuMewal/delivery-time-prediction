@@ -19,6 +19,7 @@ stages:
     cmd: python .\src\features\feature_engineering.py
     deps:
     - .\data\interim\
+    - .\src\features\utility.py
     - .\src\features\feature_engineering.py
     params:
     - feature_engineering

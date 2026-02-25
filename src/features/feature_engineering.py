@@ -9,6 +9,8 @@ from sklearn.preprocessing import StandardScaler
 import os
 import pickle
 import yaml
+import joblib
+from src.features.utility import ModeImputation
 
 from sklearn import set_config
 set_config(transform_output="pandas")
@@ -84,22 +86,6 @@ def load_params(param_url: str) -> dict:
 
 
 # Create pipeline to transform the features:
-def mode_imputation(X: pd.DataFrame) -> pd.DataFrame:
-    if X.empty:
-        raise ValueError("Empty DataFrame passed to mode_imputation")
-
-    modes_ = X.mode(dropna=True).iloc[0]
-    dtypes_ = X.dtypes
-
-    for col in X.columns:
-        try:
-            X[col] = X[col].fillna(modes_[col]).astype(dtypes_[col])
-        except Exception as e:
-            logger.error(f"Mode imputation failed for column '{col}': {e}")
-            raise
-
-    return X
-
 def create_transformer_pipeline(params: dict) -> Pipeline:
     logger.info("Creating transformation pipeline ...")
 
@@ -127,8 +113,8 @@ def create_transformer_pipeline(params: dict) -> Pipeline:
     strategy = params["const_imputation"]["strategy"]
     fill_value = params["const_imputation"]["fill_value"]
 
+
     impute_categorical_const = ColumnTransformer(transformers=[
-        ("mode_imputation", FunctionTransformer(mode_imputation, validate=False), mode_impute),
         ("const_imputation", SimpleImputer(strategy=strategy,
                                            fill_value=fill_value), random_impute),
     ], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
@@ -177,6 +163,7 @@ def create_transformer_pipeline(params: dict) -> Pipeline:
 
     logger.debug("Creating final pipeline ...")
     final_preprocessing = Pipeline(steps=[
+        ("mode_impue", ModeImputation(mode_impute)),
         ("impute_cat", impute_categorical_const),
         ("trf_cat", trf_categorical),
         ("impute_num", impute_numerical_iterative),
@@ -260,6 +247,27 @@ def save_data(train_df: pd.DataFrame, test_df: pd.DataFrame,
 
     logger.info("Everything saved successfully!")
 
+# Save the transformer pipeline:
+def save_pipeline(pipeline: Pipeline, file_name: str) -> None:
+    logger.info("Saving the pipeline after feature engineering.")
+
+    try:
+        os.makedirs("models", exist_ok=True)
+    except OSError as e:
+        logger.error(f"Failed to create output directory: {e}")
+        raise
+
+    pipe_url = os.path.join("models", file_name)
+
+    try:
+        joblib.dump(pipeline, pipe_url)
+    except IOError as e:
+        logger.error(f"Failed to save the pipeline object: {e}")
+        raise
+
+    logger.info("pipeline saved successfully!")
+
+
 def main() -> None:
     logger.info("feature engineering stage started ...")
     try:
@@ -278,6 +286,9 @@ def main() -> None:
 
         X_train_trf["time"] = y_train_trf
         X_test_trf["time"] = y_test_trf
+
+        pipeline_url = "transformer.pkl"
+        save_pipeline(pipeline, pipeline_url)
 
         save_data(X_train_trf, X_test_trf, "processed", scaler)
 

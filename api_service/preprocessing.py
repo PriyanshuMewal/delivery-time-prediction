@@ -1,9 +1,8 @@
 import pandas as pd
 import numpy as np
-import os
 import logging
 
-logger = logging.getLogger("data_preprocessing")
+logger = logging.getLogger("data_cleaning")
 logger.setLevel("DEBUG")
 
 handler = logging.StreamHandler()
@@ -13,32 +12,6 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 handler.setFormatter(formatter)
 
 logger.addHandler(handler)
-
-
-# load data:
-def load_data(train_url: str, test_url: str) -> tuple:
-    logger.info(f"Loading training data from {train_url} and test data from {test_url}")
-
-    try:
-        train_df = pd.read_csv(train_url)
-    except FileNotFoundError:
-        logger.error(f"Training file not found: {train_url}")
-        raise
-    except pd.errors.ParserError as e:
-        logger.error(f"Failed to parse training CSV: {e}")
-        raise
-
-    try:
-        test_df = pd.read_csv(test_url)
-    except FileNotFoundError:
-        logger.error(f"Test file not found: {test_url}")
-        raise
-    except pd.errors.ParserError as e:
-        logger.error(f"Failed to parse test CSV: {e}")
-        raise
-
-    logger.info("Data loaded successfully.")
-    return train_df, test_df
 
 
 # Calculate time of the day:
@@ -116,10 +89,10 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     logger.info("Cleaning data ...")
 
     required_cols = [
-        "weather", "time", "id", "age", "ratings", "traffic",
+        "weather", "ratings", "traffic", "age",
         "order_type", "vehicle_type", "multi_deliveries",
         "festival", "city_type", "date", "ordered_time",
-        "picked_time"
+        "picked_time",
     ]
 
     missing = [c for c in required_cols if c not in df.columns]
@@ -127,65 +100,31 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
         logger.error(f"{missing} -> these columns are missing investigate the previous steps.")
         raise KeyError(f"Missing required columns: {missing}")
 
-    logger.debug("fixing 'weather' column values and extracting city names from 'id' column.")
-    # fix string columns safely
-    df["weather"] = df["weather"].astype(str).str.replace("conditions ", "").str.strip()
-
-    # fix some values
-    try:
-        df["time"] = (
-            df["time"]
-            .astype(str)
-            .str.split(")")
-            .str.get(1)
-            .str.strip()
-            .astype(np.float32)
-        )
-    except ValueError:
-        logger.error("Failed to parse target column 'time'")
-        raise
-
-    df["id"] = df["id"].astype(str).str.split("RES").str.get(0)
-    df.rename(columns={"id": "city"}, inplace=True)
-
     # remove leading and trailing spaces:
-    logger.debug("removing leading and trailing spaces from nearly all the columns and 'NaN' to np.nan .")
-    cat_col = ["age", "ratings", "city", "weather", "traffic", "order_type",
+    logger.debug("removing leading and trailing spaces from nearly all the columns and 'NaN' to np.nan.")
+    cat_col = ["age", "ratings", "weather", "traffic", "order_type",
                "vehicle_type", "multi_deliveries","festival", "city_type"]
 
     for col in cat_col:
         df[col] = df[col].astype(str).str.strip().str.lower()
 
     # remove NaN values:
-    df.replace("NaN", np.nan, inplace=True)
+    df.replace("", np.nan, inplace=True)
 
     # Individually cleaning each column:
-    logger.debug("fix dtype of 'age' and 'rating' and remove some noisy data.")
-    # age:
+    logger.debug("fix dtype of all the columns ...")
+
     df["age"] = pd.to_numeric(df["age"], errors="coerce")
-    df.drop(index=df[df["age"] < 18].index, inplace=True)
-
-    # ratings:
     df["ratings"] = pd.to_numeric(df["ratings"], errors="coerce")
-    df.drop(index=df[df["ratings"] > 5].index, inplace=True)
 
-    # reset_index:
-    df.reset_index(drop=True, inplace=True)
-
-    # convert date column to datetime:
-    logger.debug("date_time columns data-type fix.")
+    # Fix date_time columns: ordered_time and picked_time  and date and more:
     df["date"] = pd.to_datetime(df["date"], format="%d-%m-%Y", errors="coerce")
-
-    # Change ordered_time and picked_time to time object:
-    df["ordered_time"] = pd.to_datetime(df["ordered_time"], format="%H:%M:%S",
+    df["ordered_time"] = pd.to_datetime(df["ordered_time"], format="%H:%M",
                                         errors="coerce").dt.time
-    df["picked_time"] = pd.to_datetime(df["picked_time"], format="%H:%M:%S",
+    df["picked_time"] = pd.to_datetime(df["picked_time"], format="%H:%M",
                                        errors="coerce").dt.time
 
-    logger.debug("generate new columns from date_time columns.")
-    df["order_day"] = df["date"].dt.day
-    df["order_month"] = df["date"].dt.month
-    df["order_day_of_week"] = df["date"].dt.day_name().str.lower()
+    logger.debug("generate new columns from date_time columns ...")
     df["is_weekend"] = df["date"].dt.day_name().isin(["Sunday", "Saturday"]).astype(int)
     df["order_time_hour"] = pd.to_datetime(df["ordered_time"], format="%H:%M:%S",
                                            errors="coerce").dt.hour
@@ -199,79 +138,13 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
                                                       "long", "very_long"])
 
     # drop rows where missing values are more than 7:
-    logger.debug("remove some NaN heavy data and useless columns.")
-    df = df[df.isna().sum(axis=1) <= 7]
+    logger.debug("remove some useless columns.")
 
-    # Drop unnecessary columns:
     cols_to_drop = ["rest_lat", "rest_long", "delivery_lat",
                     "delivery_long", "date", "order_time_hour",
-                    "order_day", "city", "order_day_of_week",
-                    "ordered_time", "picked_time", "order_month"]
+                     "ordered_time", "picked_time"]
 
     df.drop(columns=cols_to_drop, errors="ignore",  inplace=True)
 
     logger.info("Data cleaned successfully.")
     return df
-
-
-# store data:
-def save_data(train_df: pd.DataFrame,
-              test_df: pd.DataFrame, url: str) -> None:
-    logger.info("Saving the data ... ")
-
-    path = os.path.join("data", url)
-
-    try:
-        os.makedirs(path, exist_ok=True)
-    except OSError as e:
-        logger.error(f"Failed to create directory {path}: {e}")
-        raise
-
-    try:
-        train_df.to_csv(os.path.join(path, "train_cleaned.csv"), index=False)
-        test_df.to_csv(os.path.join(path, "test_cleaned.csv"), index=False)
-    except IOError as e:
-        logger.error(f"Failed to save cleaned CSV files: {e}")
-        raise
-
-    logger.info("Data files saved successfully after cleaning.")
-
-
-def main() -> None:
-    logger.info("Data cleaning stage started ...")
-
-    try:
-        # load data:
-        train_url = "data/raw/train_df.csv"
-        test_url = "data/raw/test_df.csv"
-
-        train_df, test_df = load_data(train_url, test_url)
-
-        # clean data:
-        train_cleaned = clean_data(train_df)
-        test_cleaned = clean_data(test_df)
-
-        # save data:
-        url = "interim"
-        save_data(train_cleaned, test_cleaned, url)
-
-    except FileNotFoundError as e:
-        logger.error(f"[DATA LOADING ERROR] {e}")
-        raise
-
-    except KeyError as e:
-        logger.error(f"[SCHEMA ERROR] Missing or invalid column: {e}")
-        raise
-
-    except ValueError as e:
-        logger.error(f"[DATA VALIDATION ERROR] {e}")
-        raise
-
-    except OSError as e:
-        logger.error(f"[FILE SYSTEM ERROR] {e}")
-        raise
-
-    logger.info("Data Cleaning Stage completed successfully.")
-
-if __name__ == "__main__":
-    main()

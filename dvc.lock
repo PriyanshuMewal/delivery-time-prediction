@@ -31,26 +31,30 @@ stages:
       nfiles: 2
     - path: .\src\data\data_preprocessing.py
       hash: md5
-      md5: b1a541286db830f1b1b8a6399c2ce4cf
-      size: 9439
+      md5: 7673124b4136093d8efd9adff8a6a1e9
+      size: 9454
     outs:
     - path: .\data\interim\
       hash: md5
-      md5: d66db0a61362ab095f165d4dc4542815.dir
-      size: 4687713
+      md5: c6222d2e0e560b518566c41657c5f97e.dir
+      size: 4603945
       nfiles: 2
   feature_engineering:
     cmd: python .\src\features\feature_engineering.py
     deps:
     - path: .\data\interim\
       hash: md5
-      md5: d66db0a61362ab095f165d4dc4542815.dir
-      size: 4687713
+      md5: c6222d2e0e560b518566c41657c5f97e.dir
+      size: 4603945
       nfiles: 2
     - path: .\src\features\feature_engineering.py
       hash: md5
-      md5: 19ab42874bff7d19d5bc7cb2faba95d1
-      size: 10709
+      md5: 29ef3fc0ae51b78da80c371e86414713
+      size: 10949
+    - path: .\src\features\utility.py
+      hash: md5
+      md5: f46948c6917cd6d16a96a51caff09fd9
+      size: 977
     params:
       params.yaml:
         feature_engineering:
@@ -78,16 +82,16 @@ stages:
     outs:
     - path: .\data\processed\
       hash: md5
-      md5: eafa302cca2b638984bb33280bf74af3.dir
-      size: 7363236
+      md5: cd2029d6b233e8ce0db7022ca2f55eb3.dir
+      size: 7279468
       nfiles: 2
   model_building:
     cmd: python .\src\model\model_building.py
     deps:
     - path: .\data\processed\
       hash: md5
-      md5: eafa302cca2b638984bb33280bf74af3.dir
-      size: 7363236
+      md5: cd2029d6b233e8ce0db7022ca2f55eb3.dir
+      size: 7279468
       nfiles: 2
     - path: .\src\model\model_building.py
       hash: md5
@@ -104,25 +108,25 @@ stages:
           feature_fraction: 0.7839333790779994
           bagging_fraction: 0.9697068541421031
           lambda_l1: 3.972979937157173e-08
-          lambda_l2: 2.639574087334250e-08
+          lambda_l2: 2.639574087334249e-08
           verbose: -1
     outs:
     - path: models\lgbm_regressor.pkl
       hash: md5
-      md5: d9abb5c9d4cbde4fd8692e654e294666
-      size: 12666292
+      md5: e0ef53488e6bcc78da9fabeedc5ceef5
+      size: 12751568
   model_evaluation:
     cmd: python .\src\model\model_evaluation.py
     deps:
     - path: .\data\processed\
       hash: md5
-      md5: eafa302cca2b638984bb33280bf74af3.dir
-      size: 7363236
+      md5: cd2029d6b233e8ce0db7022ca2f55eb3.dir
+      size: 7279468
       nfiles: 2
     - path: .\models\lgbm_regressor.pkl
       hash: md5
-      md5: d9abb5c9d4cbde4fd8692e654e294666
-      size: 12666292
+      md5: e0ef53488e6bcc78da9fabeedc5ceef5
+      size: 12751568
     - path: .\src\model\model_evaluation.py
       hash: md5
       md5: 9a56c6c559309bd7f65597552bcf5f65
@@ -130,11 +134,11 @@ stages:
     outs:
     - path: reports/metrics.json
       hash: md5
-      md5: 63f023d6de3db8f93b014ba0d3f38582
-      size: 249
+      md5: 3bbf28040f2d73df4c74b3c3cc54da4a
+      size: 250
     - path: reports/model_info.json
       hash: md5
-      md5: 99f84dda34f727c563c25999c0018c43
+      md5: 301bb2ff13635e2539cc7ef767403c86
       size: 53
   model_registry:
     cmd: python .\src\model\model_registry.py
@@ -145,7 +149,7 @@ stages:
       size: 4173
     - path: reports/model_info.json
       hash: md5
-      md5: 99f84dda34f727c563c25999c0018c43
+      md5: 301bb2ff13635e2539cc7ef767403c86
       size: 53
     params:
       params.yaml:
