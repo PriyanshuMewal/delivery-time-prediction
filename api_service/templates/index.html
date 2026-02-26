@@ -3,112 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <title>Delivery Time Prediction</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
 </head>
 
 <body>
 
-<h2>Delivery Time Prediction</h2>
+<div class="page-container">
 
-<form method="post" action="/predict">
+    <h2>Delivery Time Prediction</h2>
 
-    <label>Driver Age</label><br>
-    <input type="number" name="driver_age" min="18" max="65"><br><br>
+    <form method="post" action="/predict">
 
-    <label>Driver Rating</label><br>
-    <input type="number" name="driver_rating" step="0.1" min="1" max="5"><br><br>
+        <div class="form-grid">
 
-    <label>Restaurant Latitude</label><br>
-    <input type="number" step="any" value="30.2" name="rest_lat" min="8.4" max="37.6" required><br><br>
+            <!-- LEFT COLUMN -->
+            <div class="form-section">
+                <h4>Driver & Environment</h4>
 
-    <label>Restaurant Longitude</label><br>
-    <input type="number" step="any" value="75.5" name="rest_long" min="68.7" max="97.25" required><br><br>
+                <label>Driver Age</label>
+                <input type="number" name="driver_age" min="18" max="65"
+                       step="1" title="Age must be an integer between 18 and 65">
 
-    <label>Destination Latitude</label><br>
-    <input type="number" step="any" value="26.5" name="delivery_lat" min="8.4" max="37.6" required><br><br>
+                <label>Driver Rating</label>
+                <input type="number" step="0.1" name="driver_rating" min="1"
+                       max="5" title="Rating must be between 1 and 5">
 
-    <label>Destination Longitude</label><br>
-    <input type="number" step="any" value="72.56" name="delivery_long" min="68.7" max="97.25" required><br><br>
+                <label>Weather</label>
+                <select name="weather">
+                    <option value="">Select</option>
+                    <option value="sunny">Sunny</option>
+                    <option value="cloudy">Cloudy</option>
+                    <option value="fog">Fog</option>
+                    <option value="stormy">Stormy</option>
+                    <option value="windy">Windy</option>
+                    <option value="sandstorms">Sandstorms</option>
+                </select>
 
-    <label>Weather</label><br>
-    <select name="weather">
-        <option value="">Select</option>
-        <option value="sunny">Sunny</option>
-        <option value="cloudy">Cloudy</option>
-        <option value="fog">Fog</option>
-        <option value="stormy">Stormy</option>
-        <option value="windy">Windy</option>
-        <option value="sandstorms">Sandstorms</option>
-    </select><br><br>
+                <label>Traffic</label>
+                <select name="traffic">
+                    <option value="">Select</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="jam">Jam</option>
+                </select>
+            </div>
 
-    <label>Traffic</label><br>
-    <select name="traffic">
-        <option value="">Select</option>
-        <option value="low">Low</option>
-        <option value="medium">Medium</option>
-        <option value="high">High</option>
-        <option value="jam">Jam</option>
-    </select><br><br>
+            <!-- RIGHT COLUMN -->
+            <div class="form-section">
+                <h4>Location & Time</h4>
 
-    <label>Vehicle Condition (0-3)</label><br>
-    <input type="number" step="1" value="1" name="vehicle_condition" min="0" max="3" required><br><br>
+                <label>Restaurant Latitude</label>
+                <input type="number" step="any" name="rest_lat" max="37.6"
+                       required min="8.4" value="">
 
-    <label>Order Type</label><br>
-    <select name="order_type" required>
-        <option value="snack">Snack</option>
-        <option value="meal">Meal</option>
-        <option value="drink">Drink</option>
-        <option value="buffet">Buffet</option>
-    </select><br><br>
+                <label>Restaurant Longitude</label>
+                <input type="number" step="any" name="rest_long" max="97.25"
+                       required min="68.7">
 
-    <label>Vehicle Type</label><br>
-    <select name="vehicle_type" required>
-        <option value="motorcycle">Motorcycle</option>
-        <option value="scooter">Scooter</option>
-        <option value="electric_scooter">Electric Scooter</option>
-        <option value="bicycle">Bicycle</option>
-    </select><br><br>
+                <label>Destination Latitude</label>
+                <input type="number" step="any" name="delivery_lat" max="37.6"
+                       required min="8.4">
 
-    <label>Multiple Deliveries</label><br>
-    <select name="multi_deliveries">
-        <option value="">SELECT</option>
-        <option value="0">One</option>
-        <option value="1">Two</option>
-        <option value="2">Three</option>
-        <option value="3">Four</option>
-    </select><br><br>
+                <label>Destination Longitude</label>
+                <input type="number" step="any" name="delivery_long" max="97.25"
+                       required min="68.7">
 
-    <label>Festival</label><br>
-    <select name="festival">
-        <option value="">Select</option>
+                <label>Order Date</label>
+                <input type="date" name="date" required>
 
-        <option value="no">No</option>
-        <option value="yes">Yes</option>
-    </select><br><br>
+                <label>Order Time</label>
+                <input type="time" name="order_time" required>
 
-    <label>City Type</label><br>
-    <select name="city_type">
-        <option value="">Select</option>
-        <option value="Urban">Urban</option>
-        <option value="Semi-Urban">Semi-Urban</option>
-        <option value="Metropolitan">Metropolitan</option>
-    </select><br><br>
+                <label>Picked Time</label>
+                <input type="time" name="picked_time" required>
+            </div>
 
-    <label>Order Date</label><br>
-    <input type="date" value="23-11-2020" name="date" required><br><br>
+            <!-- FULL WIDTH SECTION -->
+            <div class="form-section full-width">
+                <h4>Order Details</h4>
 
-    <label>Order Time</label><br>
-    <input type="time" value="11:30" name="order_time" required><br><br>
+                <label>Vehicle Condition</label>
+                <input type="number" name="vehicle_condition" min="1"
+                       max="3" step="1" required>
 
-    <label>Picked Time</label><br>
-    <input type="time" value="12:00" name="picked_time" required><br><br>
+                <label>Order Type</label>
+                <select name="order_type">
+                    <option value="snack">Snack</option>
+                    <option value="meal">Meal</option>
+                    <option value="drink">Drink</option>
+                    <option value="buffet">Buffet</option>
+                </select>
 
-    <button type="submit">Predict Delivery Time</button>
+                <label>Vehicle Type</label>
+                <select name="vehicle_type">
+                    <option value="motorcycle">Motorcycle</option>
+                    <option value="scooter">Scooter</option>
+                    <option value="electric_scooter">Electric Scooter</option>
+                    <option value="bicycle">Bicycle</option>
+                </select>
 
-    {% if time %}
-        <h3>It would take nearly {{time}} minutes for the delivery to arrive.</h3>
-    {% endif %}
+                <label>Multiple Deliveries</label>
+                <select name="multi_deliveries">
+                    <option value="">Select</option>
+                    <option value="0">One</option>
+                    <option value="1">Two</option>
+                    <option value="2">Three</option>
+                    <option value="3">Four</option>
+                </select>
 
-</form>
+                <label>Festival</label>
+                <select name="festival">
+                    <option value="">Select</option>
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                </select>
+
+                <label>City Type</label>
+                <select name="city_type">
+                    <option value="">Select</option>
+                    <option value="urban">Urban</option>
+                    <option value="Semi-Urban">Semi-Urban</option>
+                    <option value="metropolitan">Metropolitan</option>
+                </select>
+            </div>
+
+        </div>
+
+        <button type="submit">Predict Delivery Time</button>
+
+        {% if time %}
+            <h3>It would take nearly {{ time }} minutes for the delivery to arrive.</h3>
+        {% endif %}
+
+    </form>
+
+</div>
 
 </body>
 </html>

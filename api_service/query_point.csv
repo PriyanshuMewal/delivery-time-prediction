@@ -1,0 +1,2 @@
+,age,ratings,weather,traffic,vehicle_condition,order_type,vehicle_type,multi_deliveries,festival,city_type,is_weekend,order_time_of_day,pickup_time,distance,distance_type
+0,,,,,1,snack,motorcycle,,,,0,morning,30.0,1.4981529749942657,short

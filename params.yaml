@@ -52,4 +52,4 @@ model_registry:
     Date: "24-02-2026"
 
   model_stage: "Staging"
-  model_alias: "challenger"
+  model_alias: "champion"

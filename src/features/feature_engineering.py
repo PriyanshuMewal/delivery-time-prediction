@@ -119,6 +119,8 @@ def create_transformer_pipeline(params: dict) -> Pipeline:
                                            fill_value=fill_value), random_impute),
     ], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
 
+    impute_categorical_const.set_output(transform="pandas")
+
 
     lgbm_params = params["lgbm_estimator"]
     lgb_estimator = LGBMRegressor(**lgbm_params)
@@ -128,6 +130,9 @@ def create_transformer_pipeline(params: dict) -> Pipeline:
        ("iterative", IterativeImputer(estimator=lgb_estimator,
                                       max_iter=max_iter), num_cols)
     ], remainder="passthrough", n_jobs=-1, verbose_feature_names_out=False)
+
+    impute_numerical_iterative.set_output(transform="pandas")
+
 
     # ColumnTransformers for Feature Engineering:
     logger.debug("Creating column-transformer for encoding categorical columns.")
